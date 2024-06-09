@@ -1,0 +1,230 @@
+create table users
+(
+    U_ID                 int auto_increment
+        primary key,
+    Username             varchar(255)                                 not null,
+    Password             varchar(255)                                 not null,
+    Email                varchar(255)                                 not null,
+    About_me             text                                         null,
+    User_Type            enum ('normal', 'admin')    default 'normal' null,
+    User_Status          enum ('active', 'inactive') default 'active' null,
+    Profile_Picture_Path varchar(255)                                 null,
+    constraint unique_username_email
+        unique (Username, Email)
+);
+
+create table listings
+(
+    L_ID                 int auto_increment
+        primary key,
+    Title                varchar(255)         not null,
+    Description          text                 null,
+    Price                decimal(10, 2)       null,
+    Location             varchar(255)         null,
+    Condition_Of_Listing varchar(100)         null,
+    Date_Posted          date                 null,
+    Quantity             int                  null,
+    Seller               int                  null,
+    isHidden             tinyint(1) default 0 not null,
+    First_Picture_Path   varchar(255)         null,
+    Listing_Type         varchar(255)         not null,
+    constraint listings_ibfk_1
+        foreign key (Seller) references users (U_ID)
+);
+
+create table cars
+(
+    L_ID         int          not null
+        primary key,
+    Manufacturer varchar(100) null,
+    Model        varchar(100) null,
+    Mileage      int          null,
+    Transmission varchar(50)  null,
+    Fuel_Type    varchar(50)  null,
+    constraint fk_listing
+        foreign key (L_ID) references listings (L_ID)
+);
+
+create table comments
+(
+    C_ID            int auto_increment
+        primary key,
+    Listing         int  null,
+    Potential_Buyer int  null,
+    Parent_Comment  int  null,
+    Content         text null,
+    constraint comments_ibfk_1
+        foreign key (Listing) references listings (L_ID),
+    constraint comments_ibfk_2
+        foreign key (Potential_Buyer) references users (U_ID),
+    constraint comments_ibfk_3
+        foreign key (Parent_Comment) references comments (C_ID)
+);
+
+create index Listing
+    on comments (Listing);
+
+create index Parent_Comment
+    on comments (Parent_Comment);
+
+create index Potential_Buyer
+    on comments (Potential_Buyer);
+
+create table housings
+(
+    L_ID            int          not null
+        primary key,
+    Type            varchar(100) null,
+    Square_Meters   int          null,
+    Num_of_Bedrooms int          null,
+    Floor           int          null,
+    constraint fk_housings
+        foreign key (L_ID) references listings (L_ID)
+);
+
+create table laptops
+(
+    L_ID         int           not null
+        primary key,
+    Brand        varchar(100)  null,
+    Model        varchar(100)  null,
+    Display_Size decimal(4, 2) null,
+    Processor    varchar(100)  null,
+    RAM          int           null,
+    Storage      int           null,
+    constraint fk_laptops
+        foreign key (L_ID) references listings (L_ID)
+);
+
+create index Seller
+    on listings (Seller);
+
+create index idx_listing_title
+    on listings (Title);
+
+create trigger before_insert_listings
+    before insert
+    on listings
+    for each row
+BEGIN
+    -- Check the quantity and set isHidden accordingly
+    IF NEW.Quantity = 0 THEN
+        SET NEW.isHidden = 1;
+    ELSE
+        SET NEW.isHidden = 0;
+    END IF;
+END;
+
+create trigger before_update_listings
+    before update
+    on listings
+    for each row
+BEGIN
+    -- Check the quantity and set isHidden accordingly
+    IF NEW.Quantity = 0 THEN
+        SET NEW.isHidden = 1;
+    ELSE
+        SET NEW.isHidden = 0;
+    END IF;
+END;
+
+create table phones
+(
+    L_ID    int          not null
+        primary key,
+    Brand   varchar(100) null,
+    Series  varchar(100) null,
+    Color   varchar(50)  null,
+    Storage int          null,
+    RAM     int          null,
+    constraint fk_phones
+        foreign key (L_ID) references listings (L_ID)
+);
+
+create table pictures
+(
+    Picture_ID   int auto_increment
+        primary key,
+    Listing      int          not null,
+    Picture_Name varchar(255) null,
+    constraint pictures_ibfk_1
+        foreign key (Listing) references listings (L_ID)
+);
+
+create index Listing
+    on pictures (Listing);
+
+create table shoes
+(
+    L_ID   int           not null
+        primary key,
+    Brand  varchar(100)  null,
+    Model  varchar(100)  null,
+    Gender varchar(255)  null,
+    Size   decimal(4, 1) null,
+    constraint fk_shoes
+        foreign key (L_ID) references listings (L_ID)
+);
+
+create table transactions
+(
+    T_ID           int auto_increment
+        primary key,
+    Buyer          int            null,
+    Listing        int            null,
+    Payment_Method varchar(100)   null,
+    Num_of_Items   int            null,
+    Total_Amount   decimal(10, 2) null,
+    constraint transactions_ibfk_1
+        foreign key (Buyer) references users (U_ID),
+    constraint transactions_ibfk_2
+        foreign key (Listing) references listings (L_ID)
+);
+
+create index Buyer
+    on transactions (Buyer);
+
+create index Listing
+    on transactions (Listing);
+
+create trigger before_insert_transactions
+    before insert
+    on transactions
+    for each row
+BEGIN
+    DECLARE listing_price DECIMAL(10, 2);
+
+    -- Get the price of the listing
+    SELECT Price INTO listing_price FROM listings WHERE L_ID = NEW.Listing;
+
+    -- Calculate the total amount
+    SET NEW.Total_Amount = NEW.Num_of_Items * listing_price;
+END;
+
+create trigger before_update_transactions
+    before update
+    on transactions
+    for each row
+BEGIN
+    DECLARE listing_price DECIMAL(10, 2);
+
+    -- Get the price of the listing
+    SELECT Price INTO listing_price FROM listings WHERE L_ID = NEW.Listing;
+
+    -- Calculate the total amount
+    SET NEW.Total_Amount = NEW.Num_of_Items * listing_price;
+END;
+
+create index idx_username
+    on users (Username);
+
+create view all_listings as
+select `l`.`L_ID`               AS `L_ID`,
+       `l`.`First_Picture_Path` AS `First_Picture_Path`,
+       `l`.`Title`              AS `Title`,
+       `l`.`Price`              AS `Price`,
+       `l`.`Location`           AS `Location`
+from `project-ace`.`listings` `l`
+         join `project-ace`.`users` `u`
+where ((`u`.`U_ID` = `l`.`Seller`) and (`u`.`User_Status` = 'active'));
+
